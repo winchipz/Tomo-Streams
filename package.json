@@ -2,9 +2,10 @@
   "name": "tomo-stream",
   "version": "1.0.0",
   "description": "Tomo Stream - Watch Twitch together inside Discord",
-  "main": "server/index.js",
-  "scripts": {
-    "start": "node server/index.js",
+  "main": "index.js",
+"scripts": {
+    "start": "node index.js"
+}
     "dev": "nodemon server/index.js"
   },
   "dependencies": {
