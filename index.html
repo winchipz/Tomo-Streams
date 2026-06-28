@@ -1,0 +1,1664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="theme-color" content="#0e0e10"/>
+<title>Tomo Stream</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0e0e10;
+  --surface: #18181b;
+  --surface2: #1f1f23;
+  --surface3: #26262c;
+  --border: #2a2a2e;
+  --purple: #9147ff;
+  --purple2: #772ce8;
+  --purple3: #bf94ff;
+  --text: #efeff1;
+  --muted: #adadb8;
+  --live: #eb0400;
+  --green: #00c853;
+  --gold: #ffd700;
+  --radius: 8px;
+  --header-h: 56px;
+  --player-h: min(56.25vw, 340px);
+  --transition: 0.28s cubic-bezier(0.4,0,0.2,1);
+}
+
+html, body {
+  height: 100%; width: 100%;
+  background: var(--bg); color: var(--text);
+  font-family: 'Inter', sans-serif;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+/* ════════════════════════════════════════
+   SCREENS & NAVIGATION
+════════════════════════════════════════ */
+.screen {
+  position: fixed; inset: 0;
+  display: flex; flex-direction: column;
+  transition: transform var(--transition), opacity var(--transition);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+#screen-browse {
+  z-index: 1;
+  transform: translateX(0);
+}
+
+#screen-watch {
+  z-index: 2;
+  transform: translateX(100%);
+  background: #000;
+}
+
+body.watching #screen-browse {
+  transform: translateX(-25%) scale(0.95);
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+body.watching #screen-watch {
+  transform: translateX(0);
+}
+
+/* ════════════════════════════════════════
+   BROWSE — HEADER
+════════════════════════════════════════ */
+.browse-header {
+  height: var(--header-h);
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+}
+
+.logo {
+  display: flex; align-items: center; gap: 8px;
+  font-weight: 800; font-size: 16px;
+  color: var(--purple); text-decoration: none;
+  flex-shrink: 0;
+}
+.logo svg { width: 22px; height: 22px; fill: var(--purple); }
+
+.search-wrap {
+  flex: 1;
+  position: relative;
+}
+.search-input {
+  width: 100%;
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  border-radius: 24px;
+  padding: 8px 16px 8px 38px;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s;
+  font-family: inherit;
+}
+.search-input:focus { border-color: var(--purple); }
+.search-input::placeholder { color: var(--muted); }
+.search-icon {
+  position: absolute; left: 13px; top: 50%;
+  transform: translateY(-50%);
+  fill: var(--muted); width: 14px; height: 14px; pointer-events: none;
+}
+
+.header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+.vc-pill {
+  display: flex; align-items: center; gap: 5px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 20px; padding: 6px 12px;
+  font-size: 12px; font-weight: 600; color: var(--text);
+  white-space: nowrap;
+}
+.pulse-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--green);
+  animation: pulseDot 2s infinite;
+}
+@keyframes pulseDot {
+  0%,100% { opacity:1; transform:scale(1); }
+  50% { opacity:0.5; transform:scale(0.8); }
+}
+
+/* ════════════════════════════════════════
+   BROWSE — TABS
+════════════════════════════════════════ */
+.tabs {
+  display: flex;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  padding: 0 8px;
+  gap: 4px;
+}
+.tab-btn {
+  padding: 10px 16px;
+  background: none; border: none;
+  color: var(--muted);
+  font-size: 12px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.6px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+  position: relative;
+  white-space: nowrap;
+}
+.tab-btn.active { color: var(--purple); border-bottom-color: var(--purple); }
+.tab-btn:hover:not(.active) { color: var(--text); }
+
+/* ════════════════════════════════════════
+   BROWSE — CONTENT AREA
+════════════════════════════════════════ */
+.browse-content {
+  flex: 1; overflow: hidden;
+  position: relative;
+}
+
+.tab-panel {
+  position: absolute; inset: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  opacity: 0; pointer-events: none;
+  transform: translateY(8px);
+  transition: opacity 0.2s, transform 0.2s;
+}
+.tab-panel.active {
+  opacity: 1; pointer-events: all;
+  transform: translateY(0);
+}
+.tab-panel::-webkit-scrollbar { width: 4px; }
+.tab-panel::-webkit-scrollbar-track { background: transparent; }
+.tab-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+/* ════════════════════════════════════════
+   FEATURED BANNER
+════════════════════════════════════════ */
+.featured-banner {
+  position: relative; height: 140px; overflow: hidden;
+  background: linear-gradient(135deg, #1a0533, #0e0e10);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.featured-bg {
+  position: absolute; inset: 0;
+  background-size: cover; background-position: center;
+  filter: blur(2px) brightness(0.4);
+  transition: transform 0.5s;
+}
+.featured-banner:hover .featured-bg { transform: scale(1.03); }
+.featured-content {
+  position: relative; z-index: 2;
+  padding: 16px;
+  height: 100%;
+  display: flex; flex-direction: column; justify-content: flex-end;
+}
+.featured-tag {
+  background: var(--live); color: #fff;
+  font-size: 10px; font-weight: 700;
+  padding: 3px 8px; border-radius: 4px;
+  display: inline-flex; align-items: center; gap: 4px;
+  width: fit-content; margin-bottom: 6px;
+}
+.featured-name { font-size: 18px; font-weight: 800; margin-bottom: 2px; }
+.featured-game { font-size: 12px; color: var(--purple3); }
+.featured-vc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+/* ════════════════════════════════════════
+   SECTION HEADERS
+════════════════════════════════════════ */
+.section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px 8px;
+}
+.section-title { font-size: 13px; font-weight: 700; color: var(--text); }
+.section-sub { font-size: 11px; color: var(--muted); }
+
+/* ════════════════════════════════════════
+   STREAM CARDS
+════════════════════════════════════════ */
+.stream-card {
+  display: flex; gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.12s;
+  align-items: center;
+  position: relative;
+}
+.stream-card::before {
+  content: '';
+  position: absolute; left: 0; top: 0; bottom: 0;
+  width: 3px; background: var(--purple);
+  transform: scaleX(0); transform-origin: left;
+  transition: transform 0.2s;
+}
+.stream-card:hover { background: var(--surface2); }
+.stream-card:hover::before { transform: scaleX(1); }
+.stream-card.active-stream { background: var(--surface2); }
+.stream-card.active-stream::before { transform: scaleX(1); }
+.stream-card:active { background: var(--surface3); }
+
+.thumb {
+  position: relative;
+  width: 100px; height: 56px;
+  border-radius: var(--radius);
+  overflow: hidden; flex-shrink: 0;
+  background: var(--surface2);
+}
+.thumb img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s;
+}
+.stream-card:hover .thumb img { transform: scale(1.05); }
+.badge-live {
+  position: absolute; bottom: 4px; left: 4px;
+  background: var(--live); color: #fff;
+  font-size: 9px; font-weight: 800;
+  padding: 2px 5px; border-radius: 3px; letter-spacing: 0.5px;
+}
+.badge-vc {
+  position: absolute; bottom: 4px; right: 4px;
+  background: rgba(0,0,0,0.8); color: #fff;
+  font-size: 9px; font-weight: 600;
+  padding: 2px 5px; border-radius: 3px;
+}
+
+.sinfo { flex: 1; min-width: 0; }
+.sname {
+  font-size: 13px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sgame {
+  font-size: 11px; color: var(--purple3);
+  margin-top: 3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.stitle {
+  font-size: 11px; color: var(--muted);
+  margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.slang {
+  display: inline-block;
+  background: var(--surface3); color: var(--muted);
+  font-size: 9px; font-weight: 600;
+  padding: 2px 6px; border-radius: 10px; margin-top: 3px;
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+
+.stream-actions { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
+.watch-btn {
+  background: var(--purple); border: none; border-radius: 6px;
+  color: #fff; font-size: 11px; font-weight: 600;
+  padding: 6px 12px; cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  white-space: nowrap;
+}
+.watch-btn:hover { background: var(--purple2); }
+.watch-btn:active { transform: scale(0.96); }
+
+/* ════════════════════════════════════════
+   CATEGORY CARDS (horizontal scroll)
+════════════════════════════════════════ */
+.categories-scroll {
+  display: flex; gap: 10px;
+  padding: 0 16px 14px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.categories-scroll::-webkit-scrollbar { display: none; }
+
+.cat-card {
+  flex-shrink: 0;
+  width: 80px; cursor: pointer;
+  transition: transform 0.2s;
+}
+.cat-card:hover { transform: translateY(-3px); }
+.cat-card img {
+  width: 80px; height: 107px;
+  border-radius: var(--radius);
+  object-fit: cover;
+  background: var(--surface2);
+  display: block;
+}
+.cat-name {
+  font-size: 10px; font-weight: 600;
+  margin-top: 5px; text-align: center;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--text);
+}
+
+/* ════════════════════════════════════════
+   GAME CARDS (list)
+════════════════════════════════════════ */
+.game-card {
+  display: flex; align-items: center; gap: 14px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.game-card:hover { background: var(--surface2); }
+.game-card:active { background: var(--surface3); }
+.game-card img {
+  width: 44px; height: 59px;
+  border-radius: 5px; object-fit: cover;
+  background: var(--surface2); flex-shrink: 0;
+}
+.game-info { flex: 1; min-width: 0; }
+.game-name { font-size: 13px; font-weight: 600; }
+.game-vc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+/* ════════════════════════════════════════
+   LOADING
+════════════════════════════════════════ */
+.loading {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 40px; color: var(--muted); font-size: 13px; gap: 12px;
+}
+.spinner {
+  width: 22px; height: 22px;
+  border: 2px solid var(--border);
+  border-top-color: var(--purple);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.empty-state {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 50px 20px; gap: 10px; color: var(--muted);
+}
+.empty-icon { font-size: 40px; margin-bottom: 4px; }
+.empty-title { font-size: 15px; font-weight: 600; color: var(--text); }
+.empty-sub { font-size: 12px; text-align: center; }
+
+/* ════════════════════════════════════════
+   WATCH SCREEN — HEADER
+════════════════════════════════════════ */
+.watch-header {
+  height: var(--header-h);
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 14px;
+  background: rgba(0,0,0,0.95);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  flex-shrink: 0; z-index: 10;
+}
+
+.back-btn {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text);
+  padding: 8px 14px; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all 0.15s;
+  flex-shrink: 0;
+}
+.back-btn:hover { background: var(--surface3); border-color: var(--purple); }
+.back-btn:active { transform: scale(0.96); }
+
+.watch-title { flex: 1; min-width: 0; }
+.watch-stream-name {
+  font-size: 14px; font-weight: 700;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.watch-stream-sub { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 5px; margin-top: 2px; }
+.live-dot { width: 7px; height: 7px; background: var(--live); border-radius: 50%; animation: pulseDot 1.5s infinite; flex-shrink: 0; }
+
+/* ════════════════════════════════════════
+   WATCH SCREEN — PLAYER
+════════════════════════════════════════ */
+.player-shell {
+  width: 100%;
+  height: var(--player-h);
+  background: #000;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+#twitch-player { width: 100%; height: 100%; }
+
+.player-overlay {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.3s;
+  background: radial-gradient(circle, rgba(145,71,255,0.2) 0%, transparent 70%);
+}
+.player-overlay.show { opacity: 1; }
+.overlay-icon { font-size: 52px; filter: drop-shadow(0 0 20px var(--purple)); }
+
+/* ════════════════════════════════════════
+   WATCH SCREEN — SYNC BAR
+════════════════════════════════════════ */
+.sync-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+.sync-bar::-webkit-scrollbar { display: none; }
+
+.sync-btn {
+  display: flex; align-items: center; gap: 6px;
+  border: none; border-radius: var(--radius);
+  padding: 8px 14px; font-size: 12px; font-weight: 700;
+  cursor: pointer; transition: all 0.15s;
+  white-space: nowrap; font-family: inherit;
+  flex-shrink: 0;
+}
+.sync-btn:active { transform: scale(0.95); }
+.sync-btn.primary { background: var(--purple); color: #fff; }
+.sync-btn.primary:hover { background: var(--purple2); }
+.sync-btn.secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.sync-btn.secondary:hover { border-color: var(--purple); color: var(--purple); }
+.sync-btn.danger { background: rgba(235,4,0,0.15); color: var(--live); border: 1px solid rgba(235,4,0,0.3); }
+
+.sync-status {
+  margin-left: auto; font-size: 11px; color: var(--muted);
+  white-space: nowrap; flex-shrink: 0;
+  transition: color 0.3s;
+}
+.sync-status.ok { color: var(--green); }
+.sync-status.warn { color: var(--gold); }
+
+/* ════════════════════════════════════════
+   WATCH SCREEN — LOWER TABS
+════════════════════════════════════════ */
+.watch-lower {
+  flex: 1; display: flex; flex-direction: column; overflow: hidden;
+}
+.watch-tabs {
+  display: flex;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.watch-tab {
+  flex: 1; padding: 10px 0;
+  background: none; border: none;
+  color: var(--muted); font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  border-bottom: 2px solid transparent;
+  cursor: pointer; transition: all 0.2s;
+}
+.watch-tab.active { color: var(--purple); border-bottom-color: var(--purple); }
+
+.watch-panel {
+  display: none; flex: 1; overflow-y: auto;
+  -webkit-overflow-scrolling: touch; flex-direction: column;
+}
+.watch-panel.active { display: flex; }
+.watch-panel::-webkit-scrollbar { width: 3px; }
+.watch-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ════════════════════════════════════════
+   CHAT PANEL
+════════════════════════════════════════ */
+#panel-chat {
+  display: none; flex-direction: column; flex: 1; overflow: hidden;
+}
+#panel-chat.active { display: flex; }
+
+.chat-messages {
+  flex: 1; overflow-y: auto;
+  padding: 10px 14px;
+  -webkit-overflow-scrolling: touch;
+}
+.chat-messages::-webkit-scrollbar { width: 3px; }
+.chat-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+.chat-msg {
+  display: flex; gap: 8px;
+  margin-bottom: 12px; align-items: flex-start;
+  animation: msgIn 0.2s ease-out;
+}
+@keyframes msgIn { from { opacity: 0; transform: translateY(8px); } to { opacity:1; transform:translateY(0); } }
+
+.chat-avatar {
+  width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; color: #fff;
+  flex-shrink: 0; position: relative;
+}
+.chat-body { flex: 1; }
+.chat-meta { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+.chat-name { font-size: 12px; font-weight: 700; }
+.chat-time { font-size: 10px; color: var(--muted); }
+.chat-text { font-size: 13px; color: var(--text); line-height: 1.4; word-break: break-word; }
+
+.system-msg {
+  text-align: center; font-size: 11px; color: var(--muted);
+  padding: 4px 0 8px;
+  animation: msgIn 0.2s ease-out;
+}
+
+.chat-input-bar {
+  display: flex; gap: 8px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.chat-input {
+  flex: 1;
+  background: var(--surface2); border: 1.5px solid var(--border);
+  border-radius: 20px; padding: 9px 16px;
+  color: var(--text); font-size: 13px; outline: none;
+  font-family: inherit; transition: border-color 0.2s;
+  user-select: text;
+}
+.chat-input:focus { border-color: var(--purple); }
+.chat-input::placeholder { color: var(--muted); }
+.chat-send {
+  background: var(--purple); border: none; border-radius: 20px;
+  color: #fff; padding: 9px 18px; font-size: 13px; font-weight: 700;
+  cursor: pointer; transition: all 0.15s; font-family: inherit;
+  flex-shrink: 0;
+}
+.chat-send:hover { background: var(--purple2); }
+.chat-send:active { transform: scale(0.95); }
+
+/* ════════════════════════════════════════
+   VIEWERS PANEL
+════════════════════════════════════════ */
+#panel-viewers.active { display: flex; flex-direction: column; }
+
+.viewers-header-info {
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.viewers-count-big { font-size: 28px; font-weight: 800; color: var(--purple); }
+.viewers-count-label { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+.viewer-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  animation: msgIn 0.2s ease-out;
+}
+.viewer-avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 700; color: #fff; flex-shrink: 0;
+}
+.viewer-name { font-size: 13px; font-weight: 600; }
+.viewer-badge {
+  margin-left: auto; font-size: 10px; font-weight: 700;
+  padding: 2px 8px; border-radius: 10px;
+}
+.badge-host { background: rgba(145,71,255,0.2); color: var(--purple); }
+.badge-viewer { background: var(--surface2); color: var(--muted); }
+
+/* ════════════════════════════════════════
+   QUEUE PANEL
+════════════════════════════════════════ */
+#panel-queue.active { display: flex; flex-direction: column; }
+
+.queue-empty {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  color: var(--muted); gap: 10px; padding: 40px;
+}
+.queue-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px; border-bottom: 1px solid var(--border);
+  animation: msgIn 0.2s ease-out;
+}
+.queue-num { font-size: 16px; font-weight: 800; color: var(--muted); width: 24px; flex-shrink: 0; }
+.queue-thumb { width: 64px; height: 36px; border-radius: 5px; overflow: hidden; flex-shrink: 0; background: var(--surface2); }
+.queue-thumb img { width:100%; height:100%; object-fit:cover; }
+.queue-info { flex:1; min-width:0; }
+.queue-name { font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.queue-game { font-size:11px; color:var(--muted); }
+.queue-play {
+  background: var(--purple); border:none; border-radius:6px;
+  color:#fff; padding:6px 12px; font-size:11px; font-weight:700;
+  cursor:pointer; flex-shrink:0;
+}
+.queue-remove {
+  background:none; border:none; color:var(--muted);
+  font-size:18px; cursor:pointer; padding:4px; flex-shrink:0;
+}
+.queue-remove:hover { color:var(--live); }
+
+.add-queue-bar {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--surface);
+}
+.add-queue-input {
+  width:100%; background:var(--surface2); border:1.5px solid var(--border);
+  border-radius:var(--radius); padding:9px 14px;
+  color:var(--text); font-size:13px; outline:none; font-family:inherit;
+  transition:border-color 0.2s; user-select:text;
+}
+.add-queue-input:focus { border-color:var(--purple); }
+.add-queue-input::placeholder { color:var(--muted); }
+
+/* ════════════════════════════════════════
+   REACTIONS BAR
+════════════════════════════════════════ */
+.reactions-bar {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 14px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+.reactions-bar::-webkit-scrollbar { display: none; }
+.react-label { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+
+.react-btn {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 20px; padding: 6px 12px; font-size: 18px;
+  cursor: pointer; transition: all 0.15s;
+  flex-shrink: 0; display: flex; align-items: center;
+}
+.react-btn:hover { background: var(--surface3); transform: scale(1.1); }
+.react-btn:active { transform: scale(1.25); background: var(--purple); border-color: var(--purple); }
+
+/* ════════════════════════════════════════
+   FLOATING ELEMENTS
+════════════════════════════════════════ */
+.float-emoji {
+  position: fixed; pointer-events: none;
+  font-size: 32px; z-index: 9999;
+  animation: floatUp 2.8s cubic-bezier(0.2, 0.8, 0.4, 1) forwards;
+}
+@keyframes floatUp {
+  0%   { transform: translateY(0) scale(1) rotate(0deg); opacity: 1; }
+  50%  { transform: translateY(-120px) scale(1.3) rotate(10deg); opacity: 1; }
+  100% { transform: translateY(-240px) scale(0.8) rotate(-5deg); opacity: 0; }
+}
+
+.toast {
+  position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 20px; padding: 10px 20px;
+  font-size: 13px; font-weight: 600; color: var(--text);
+  z-index: 9998; white-space: nowrap;
+  animation: toastIn 0.25s ease-out, toastOut 0.25s ease-in 1.75s forwards;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+@keyframes toastIn { from { opacity:0; transform:translateX(-50%) translateY(12px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
+@keyframes toastOut { to { opacity:0; transform:translateX(-50%) translateY(12px); } }
+
+.sync-ripple {
+  position: fixed; inset: 0; pointer-events: none; z-index: 9997;
+  background: radial-gradient(circle at 50% 30%, rgba(145,71,255,0.18) 0%, transparent 65%);
+  animation: rippleFade 0.6s ease-out forwards;
+}
+@keyframes rippleFade { 0%{opacity:1} 100%{opacity:0} }
+
+/* ════════════════════════════════════════
+   MINI PLAYER (when browsing while watching)
+════════════════════════════════════════ */
+.mini-player {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 10px 16px;
+  display: none; align-items: center; gap: 10px;
+  cursor: pointer;
+  transition: transform 0.3s;
+}
+.mini-player.show { display: flex; }
+.mini-player:hover { background: var(--surface2); }
+.mini-dot { width: 8px; height: 8px; background: var(--live); border-radius: 50%; animation: pulseDot 1.5s infinite; flex-shrink: 0; }
+.mini-info { flex: 1; min-width: 0; }
+.mini-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini-sub { font-size: 11px; color: var(--muted); }
+.mini-btn {
+  background: var(--purple); border: none; border-radius: 6px;
+  color: #fff; padding: 7px 14px; font-size: 12px; font-weight: 700;
+  cursor: pointer; flex-shrink: 0;
+}
+
+/* ════════════════════════════════════════
+   PC LAYOUT (>= 768px)
+════════════════════════════════════════ */
+@media (min-width: 768px) {
+  :root { --player-h: min(45vw, 480px); }
+
+  #screen-watch {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .watch-header {
+    width: 100%;
+    flex-shrink: 0;
+  }
+
+  .player-shell {
+    flex: 1;
+    height: calc(100vh - var(--header-h));
+    min-width: 0;
+  }
+
+  .watch-right {
+    width: 320px;
+    height: calc(100vh - var(--header-h));
+    display: flex; flex-direction: column;
+    border-left: 1px solid var(--border);
+    flex-shrink: 0;
+    background: var(--surface);
+    overflow: hidden;
+  }
+
+  .sync-bar { border-right: none; }
+  .watch-lower { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+  .reactions-bar { border-top: 1px solid var(--border); }
+
+  /* Browse sidebar on PC */
+  #screen-browse {
+    flex-direction: row;
+  }
+  .browse-left {
+    width: 280px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .browse-main {
+    flex: 1; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+}
+
+/* ════════════════════════════════════════
+   TV / CONSOLE LAYOUT (>= 1200px)
+════════════════════════════════════════ */
+@media (min-width: 1200px) {
+  :root { --player-h: calc(100vh - var(--header-h) - 160px); }
+  .watch-right { width: 380px; }
+  .browse-left { width: 320px; }
+
+  .stream-card { padding: 12px 20px; }
+  .thumb { width: 120px; height: 67px; }
+  .sname { font-size: 14px; }
+}
+
+/* ════════════════════════════════════════
+   SCROLLBAR GLOBAL
+════════════════════════════════════════ */
+* { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+
+/* ════════════════════════════════════════
+   AVATAR COLORS
+════════════════════════════════════════ */
+.av-0 { background: #9147ff; }
+.av-1 { background: #e91e8c; }
+.av-2 { background: #00bcd4; }
+.av-3 { background: #ff5722; }
+.av-4 { background: #4caf50; }
+.av-5 { background: #ff9800; }
+.av-6 { background: #3f51b5; }
+.av-7 { background: #009688; }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════
+     BROWSE SCREEN
+════════════════════════════════════ -->
+<div class="screen" id="screen-browse">
+
+  <div class="browse-header">
+    <div class="logo">
+      <svg viewBox="0 0 24 24"><path d="M11.64 5.93h1.43v4.28h-1.43m3.93-4.28H17v4.28h-1.43M7 2L3.43 5.57v12.86h4.28V22l3.58-3.57h2.85L20.57 12V2m-1.43 9.29-2.85 2.85h-2.86l-2.5 2.5v-2.5H7.71V3.43h11.43z"/></svg>
+      Tomo Stream
+    </div>
+    <div class="search-wrap">
+      <svg class="search-icon" viewBox="0 0 24 24"><path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"/></svg>
+      <input type="text" class="search-input" id="search-input" placeholder="Search channels, games..."/>
+    </div>
+    <div class="header-right">
+      <div class="vc-pill">
+        <div class="pulse-dot"></div>
+        <span id="vc-global">0</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchBrowseTab('live')">🔴 Live</button>
+    <button class="tab-btn" onclick="switchBrowseTab('games')">🎮 Games</button>
+    <button class="tab-btn" onclick="switchBrowseTab('categories')">📂 Categories</button>
+  </div>
+
+  <div class="browse-content">
+
+    <!-- LIVE TAB -->
+    <div class="tab-panel active" id="tab-live">
+      <div id="featured-banner" class="featured-banner" style="display:none">
+        <div class="featured-bg" id="featured-bg"></div>
+        <div class="featured-content">
+          <div class="featured-tag">🔴 TOP STREAM</div>
+          <div class="featured-name" id="featured-name"></div>
+          <div class="featured-game" id="featured-game"></div>
+          <div class="featured-vc" id="featured-vc"></div>
+        </div>
+      </div>
+      <div class="section-header">
+        <span class="section-title">Live Channels</span>
+        <span class="section-sub" id="live-count"></span>
+      </div>
+      <div class="loading" id="live-loading"><div class="spinner"></div>Loading streams...</div>
+      <div id="live-list"></div>
+      <div style="height:80px"></div>
+    </div>
+
+    <!-- GAMES TAB -->
+    <div class="tab-panel" id="tab-games">
+      <div class="section-header">
+        <span class="section-title">Top Games</span>
+      </div>
+      <div class="loading" id="games-loading"><div class="spinner"></div>Loading games...</div>
+      <div id="games-list"></div>
+    </div>
+
+    <!-- CATEGORIES TAB -->
+    <div class="tab-panel" id="tab-categories">
+      <div class="section-header">
+        <span class="section-title">Browse Categories</span>
+      </div>
+      <div class="loading" id="cats-loading"><div class="spinner"></div>Loading categories...</div>
+      <div id="cats-grid" style="padding:0 16px 16px;display:flex;flex-wrap:wrap;gap:12px;"></div>
+    </div>
+
+  </div>
+
+  <!-- Mini player -->
+  <div class="mini-player" id="mini-player" onclick="goWatch()">
+    <div class="mini-dot"></div>
+    <div class="mini-info">
+      <div class="mini-name" id="mini-name">—</div>
+      <div class="mini-sub">Tap to go back</div>
+    </div>
+    <button class="mini-btn">Watch</button>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════
+     WATCH SCREEN
+════════════════════════════════════ -->
+<div class="screen" id="screen-watch">
+
+  <div class="watch-header">
+    <button class="back-btn" onclick="goBack()">
+      <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z"/></svg>
+      Browse
+    </button>
+    <div class="watch-title">
+      <div class="watch-stream-name" id="watch-stream-name">—</div>
+      <div class="watch-stream-sub">
+        <div class="live-dot"></div>
+        <span id="watch-stream-game">Live on Twitch</span>
+        <span>•</span>
+        <span id="watch-vc-count">0 watching</span>
+      </div>
+    </div>
+    <div class="vc-pill">
+      <div class="pulse-dot"></div>
+      <span id="vc-watch">0</span>
+    </div>
+  </div>
+
+  <!-- On PC this wraps player + right panel -->
+  <div style="display:flex;flex:1;overflow:hidden;min-height:0">
+
+    <div style="display:flex;flex-direction:column;flex:1;min-width:0;overflow:hidden">
+
+      <!-- Player -->
+      <div class="player-shell">
+        <div id="twitch-player"></div>
+        <div class="player-overlay" id="player-overlay">
+          <div class="overlay-icon" id="overlay-icon">⏸</div>
+        </div>
+      </div>
+
+      <!-- Sync controls -->
+      <div class="sync-bar">
+        <button class="sync-btn primary" onclick="syncPlay()">▶ Play All</button>
+        <button class="sync-btn secondary" onclick="syncPause()">⏸ Pause All</button>
+        <button class="sync-btn secondary" onclick="syncSkip()">⏭ Skip 10s</button>
+        <button class="sync-btn danger" onclick="promptChangeStream()">📺 Change</button>
+        <span class="sync-status" id="sync-status">Ready</span>
+      </div>
+
+      <!-- Reactions -->
+      <div class="reactions-bar">
+        <span class="react-label">React:</span>
+        <button class="react-btn" onclick="react('🔥')">🔥</button>
+        <button class="react-btn" onclick="react('😂')">😂</button>
+        <button class="react-btn" onclick="react('😮')">😮</button>
+        <button class="react-btn" onclick="react('❤️')">❤️</button>
+        <button class="react-btn" onclick="react('👏')">👏</button>
+        <button class="react-btn" onclick="react('💜')">💜</button>
+        <button class="react-btn" onclick="react('🎉')">🎉</button>
+        <button class="react-btn" onclick="react('😡')">😡</button>
+        <button class="react-btn" onclick="react('💀')">💀</button>
+        <button class="react-btn" onclick="react('🐐')">🐐</button>
+      </div>
+
+      <!-- Mobile lower tabs + panels -->
+      <div class="watch-lower" id="watch-lower">
+        <div class="watch-tabs">
+          <button class="watch-tab active" onclick="switchWatchTab('chat')">💬 Chat</button>
+          <button class="watch-tab" onclick="switchWatchTab('viewers')">👥 Viewers</button>
+          <button class="watch-tab" onclick="switchWatchTab('queue')">📋 Queue</button>
+        </div>
+
+        <!-- Chat -->
+        <div id="panel-chat" class="watch-panel active" style="flex-direction:column">
+          <div class="chat-messages" id="chat-messages"></div>
+          <div class="chat-input-bar">
+            <input type="text" class="chat-input" id="chat-input" placeholder="Say something..." maxlength="200"/>
+            <button class="chat-send" onclick="sendChat()">Send</button>
+          </div>
+        </div>
+
+        <!-- Viewers -->
+        <div id="panel-viewers" class="watch-panel">
+          <div class="viewers-header-info">
+            <div class="viewers-count-big" id="viewers-count-big">0</div>
+            <div class="viewers-count-label">people watching together</div>
+          </div>
+          <div id="viewers-list"></div>
+        </div>
+
+        <!-- Queue -->
+        <div id="panel-queue" class="watch-panel" style="flex-direction:column">
+          <div id="queue-list" style="flex:1;overflow-y:auto">
+            <div class="queue-empty" id="queue-empty">
+              <div style="font-size:36px">📋</div>
+              <div style="font-size:14px;font-weight:600;color:var(--text)">Queue is empty</div>
+              <div style="font-size:12px">Add a streamer below</div>
+            </div>
+          </div>
+          <div class="add-queue-bar">
+            <input type="text" class="add-queue-input" id="queue-input" placeholder="Add streamer username to queue..." maxlength="50"/>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PC right panel (hidden on mobile via CSS) -->
+    <div class="watch-right" id="watch-right" style="display:none">
+      <!-- filled by JS on PC -->
+    </div>
+
+  </div>
+</div>
+
+<!-- Twitch Player SDK -->
+<script src="https://player.twitch.tv/js/embed/v1.js"></script>
+
+<script>
+// ════════════════════════════════════════
+// CONFIG & STATE
+// ════════════════════════════════════════
+const BASE    = window.location.origin;
+const WS_URL  = BASE.replace('https://','wss://').replace('http://','ws://');
+const P       = new URLSearchParams(window.location.search);
+const ROOM    = P.get('room') || 'default';
+const COLORS  = ['av-0','av-1','av-2','av-3','av-4','av-5','av-6','av-7'];
+
+const MY_NAME = P.get('user') || 'Viewer' + Math.floor(Math.random()*9999);
+const MY_COLOR = COLORS[Math.floor(Math.random() * COLORS.length)];
+
+let ws, player = null;
+let currentChannel = null;
+let isSyncing = false;
+let viewerCount = 0;
+let viewers = new Map(); // name → {color, joinedAt}
+let queue = [];
+let isPC = window.innerWidth >= 768;
+
+// ════════════════════════════════════════
+// WEBSOCKET
+// ════════════════════════════════════════
+function connectWS() {
+  ws = new WebSocket(WS_URL);
+
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ type:'join', roomId:ROOM, name:MY_NAME, color:MY_COLOR }));
+  };
+
+  ws.onmessage = e => {
+    const m = JSON.parse(e.data);
+    switch(m.type) {
+      case 'joined':
+        viewerCount = m.count;
+        if (m.stream) { loadStream(m.stream, false); }
+        if (m.viewers) {
+          viewers.clear();
+          m.viewers.forEach(v => viewers.set(v.name, { color: v.color, joinedAt: Date.now() }));
+        }
+        if (m.queue) { queue = m.queue; renderQueue(); }
+        updateViewerUI();
+        break;
+
+      case 'user_joined':
+        viewerCount = m.count;
+        viewers.set(m.name, { color: m.color, joinedAt: Date.now() });
+        updateViewerUI();
+        addSystemMsg(`${m.name} joined 👋`);
+        showToast(`${m.name} joined`);
+        break;
+
+      case 'user_left':
+        viewerCount = m.count;
+        viewers.delete(m.name);
+        updateViewerUI();
+        addSystemMsg(`${m.name} left`);
+        break;
+
+      case 'stream_change':
+        loadStream(m.channel, false);
+        addSystemMsg(`Now watching <strong>${m.channel}</strong> 📺`);
+        showToast(`Switched to ${m.channel}`);
+        break;
+
+      case 'sync_pause':
+        isSyncing = true;
+        if (player) player.pause();
+        showOverlay('⏸', 600);
+        showSyncRipple();
+        setSyncStatus('Paused by host', 'warn');
+        setTimeout(() => { isSyncing = false; }, 600);
+        break;
+
+      case 'sync_play':
+        isSyncing = true;
+        if (player) player.play();
+        showOverlay('▶', 600);
+        showSyncRipple();
+        setSyncStatus('Synced ✓', 'ok');
+        setTimeout(() => { isSyncing = false; }, 600);
+        break;
+
+      case 'sync_skip':
+        isSyncing = true;
+        if (player) {
+          // Twitch player doesn't support seek in live streams natively
+          // but we can seek in VODs
+          try { player.seek(player.getCurrentTime() + m.seconds); } catch(e){}
+        }
+        showOverlay(`⏭+${m.seconds}s`, 600);
+        setSyncStatus(`Skipped ${m.seconds}s`, 'ok');
+        setTimeout(() => { isSyncing = false; }, 600);
+        break;
+
+      case 'reaction':
+        showEmoji(m.emoji, m.x, m.y);
+        break;
+
+      case 'chat':
+        addChatMsg(m.name, m.color, m.text, m.ts);
+        break;
+
+      case 'queue_update':
+        queue = m.queue;
+        renderQueue();
+        break;
+    }
+  };
+
+  ws.onclose = () => {
+    setSyncStatus('Reconnecting...', 'warn');
+    setTimeout(connectWS, 2500);
+  };
+}
+
+function send(obj) {
+  if (ws?.readyState === 1) ws.send(JSON.stringify(obj));
+}
+
+// ════════════════════════════════════════
+// PLAYER
+// ════════════════════════════════════════
+function loadStream(channel, broadcast = true) {
+  currentChannel = channel;
+
+  // Update UI labels
+  document.getElementById('watch-stream-name').textContent = channel;
+  document.getElementById('mini-name').textContent = channel;
+
+  // Mark active in browse list
+  document.querySelectorAll('.stream-card').forEach(c =>
+    c.classList.toggle('active-stream', c.dataset.ch === channel)
+  );
+
+  // Go to watch screen
+  goWatch();
+
+  const domain = window.location.hostname || 'localhost';
+
+  if (player) {
+    player.setChannel(channel);
+  } else {
+    player = new Twitch.Player('twitch-player', {
+      channel,
+      width: '100%',
+      height: '100%',
+      parent: [domain],
+      autoplay: true,
+      muted: false,
+      layout: 'video'
+    });
+
+    player.addEventListener(Twitch.Player.PAUSE, () => {
+      if (!isSyncing) setSyncStatus('You paused', '');
+    });
+    player.addEventListener(Twitch.Player.PLAY, () => {
+      if (!isSyncing) setSyncStatus('Playing', 'ok');
+    });
+    player.addEventListener(Twitch.Player.ONLINE, () => {
+      setSyncStatus('Live ✓', 'ok');
+    });
+    player.addEventListener(Twitch.Player.OFFLINE, () => {
+      setSyncStatus('Stream offline', 'warn');
+    });
+  }
+
+  if (broadcast) {
+    send({ type:'change_stream', channel });
+  }
+
+  // Fetch stream info for header
+  fetch(`${BASE}/api/stream/${channel}`)
+    .then(r => r.json())
+    .then(d => {
+      if (d.stream) {
+        document.getElementById('watch-stream-game').textContent = d.stream.game_name || 'Live';
+        document.getElementById('watch-vc-count').textContent =
+          formatVC(d.stream.viewer_count) + ' viewers';
+      }
+    }).catch(() => {});
+}
+
+function goWatch() {
+  document.body.classList.add('watching');
+  document.getElementById('mini-player').classList.remove('show');
+}
+
+function goBack() {
+  document.body.classList.remove('watching');
+  if (currentChannel) {
+    document.getElementById('mini-player').classList.add('show');
+  }
+}
+
+// ════════════════════════════════════════
+// SYNC CONTROLS
+// ════════════════════════════════════════
+function syncPlay() {
+  if (!player) return;
+  player.play();
+  send({ type:'sync_play' });
+  showOverlay('▶', 600);
+  showSyncRipple();
+  setSyncStatus('Played everyone ▶', 'ok');
+}
+
+function syncPause() {
+  if (!player) return;
+  player.pause();
+  send({ type:'sync_pause' });
+  showOverlay('⏸', 600);
+  showSyncRipple();
+  setSyncStatus('Paused everyone ⏸', 'warn');
+}
+
+function syncSkip() {
+  send({ type:'sync_skip', seconds: 10 });
+  showOverlay('⏭', 600);
+  setSyncStatus('Skipped 10s for everyone', 'ok');
+}
+
+function promptChangeStream() {
+  const ch = prompt('Enter streamer username:');
+  if (ch?.trim()) loadStream(ch.trim().toLowerCase());
+}
+
+// ════════════════════════════════════════
+// REACTIONS
+// ════════════════════════════════════════
+function react(emoji) {
+  const x = 20 + Math.random() * 60;
+  const y = 200 + Math.random() * 60;
+  showEmoji(emoji, x, y);
+  send({ type:'reaction', emoji, x, y });
+}
+
+function showEmoji(emoji, x = 50, y = 200) {
+  const el = document.createElement('div');
+  el.className = 'float-emoji';
+  el.textContent = emoji;
+  el.style.cssText = `left:${x}%;bottom:${y}px`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2800);
+}
+
+// ════════════════════════════════════════
+// OVERLAY & FEEDBACK
+// ════════════════════════════════════════
+function showOverlay(icon, duration) {
+  const el = document.getElementById('player-overlay');
+  const ic = document.getElementById('overlay-icon');
+  ic.textContent = icon;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), duration);
+}
+
+function showSyncRipple() {
+  const el = document.createElement('div');
+  el.className = 'sync-ripple';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 600);
+}
+
+function showToast(msg) {
+  const existing = document.querySelector('.toast');
+  if (existing) existing.remove();
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2100);
+}
+
+function setSyncStatus(msg, type = '') {
+  const el = document.getElementById('sync-status');
+  el.textContent = msg;
+  el.className = 'sync-status' + (type ? ' ' + type : '');
+}
+
+// ════════════════════════════════════════
+// CHAT
+// ════════════════════════════════════════
+function sendChat() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  const ts = Date.now();
+  addChatMsg(MY_NAME, MY_COLOR, text, ts);
+  send({ type:'chat', name:MY_NAME, color:MY_COLOR, text, ts });
+  input.value = '';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('chat-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') sendChat();
+  });
+  document.getElementById('queue-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') addToQueue(e.target.value.trim());
+  });
+});
+
+function addChatMsg(name, color, text, ts) {
+  const chat = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'chat-msg';
+  const initial = name[0]?.toUpperCase() || '?';
+  const time = ts ? new Date(ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '';
+  div.innerHTML = `
+    <div class="chat-avatar ${color || 'av-0'}">${initial}</div>
+    <div class="chat-body">
+      <div class="chat-meta">
+        <span class="chat-name" style="color:${colorFromClass(color)}">${escHtml(name)}</span>
+        <span class="chat-time">${time}</span>
+      </div>
+      <div class="chat-text">${escHtml(text)}</div>
+    </div>`;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function addSystemMsg(html) {
+  const chat = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'system-msg';
+  div.innerHTML = html;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function colorFromClass(cls) {
+  const map = {
+    'av-0':'#9147ff','av-1':'#e91e8c','av-2':'#00bcd4',
+    'av-3':'#ff5722','av-4':'#4caf50','av-5':'#ff9800',
+    'av-6':'#3f51b5','av-7':'#009688'
+  };
+  return map[cls] || '#9147ff';
+}
+
+// ════════════════════════════════════════
+// VIEWERS
+// ════════════════════════════════════════
+function updateViewerUI() {
+  document.getElementById('vc-global').textContent = viewerCount;
+  document.getElementById('vc-watch').textContent = viewerCount;
+  document.getElementById('viewers-count-big').textContent = viewerCount;
+  document.getElementById('watch-vc-count').textContent = `${viewerCount} watching`;
+
+  const list = document.getElementById('viewers-list');
+  list.innerHTML = '';
+  let i = 0;
+  viewers.forEach((info, name) => {
+    const isMe = name === MY_NAME;
+    const isFirst = i === 0;
+    const div = document.createElement('div');
+    div.className = 'viewer-item';
+    div.innerHTML = `
+      <div class="viewer-avatar ${info.color}">${name[0]?.toUpperCase()}</div>
+      <div class="viewer-name">${escHtml(name)}${isMe ? ' (you)' : ''}</div>
+      <div class="viewer-badge ${isFirst ? 'badge-host' : 'badge-viewer'}">${isFirst ? '👑 Host' : 'Viewer'}</div>`;
+    list.appendChild(div);
+    i++;
+  });
+}
+
+// ════════════════════════════════════════
+// QUEUE
+// ════════════════════════════════════════
+function addToQueue(username) {
+  if (!username) return;
+  document.getElementById('queue-input').value = '';
+  send({ type:'queue_add', channel: username.toLowerCase(), name: MY_NAME });
+}
+
+function renderQueue() {
+  const list = document.getElementById('queue-list');
+  const empty = document.getElementById('queue-empty');
+  if (!queue.length) {
+    if (empty) empty.style.display = 'flex';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  list.innerHTML = '';
+  queue.forEach((item, idx) => {
+    const div = document.createElement('div');
+    div.className = 'queue-item';
+    div.innerHTML = `
+      <div class="queue-num">${idx + 1}</div>
+      <div class="queue-thumb">
+        <img src="https://static-cdn.jtvnw.net/previews-ttv/live_user_${item.channel}-64x36.jpg"
+             onerror="this.style.display='none'" loading="lazy"/>
+      </div>
+      <div class="queue-info">
+        <div class="queue-name">${escHtml(item.channel)}</div>
+        <div class="queue-game">Added by ${escHtml(item.addedBy)}</div>
+      </div>
+      <button class="queue-play" onclick="playFromQueue(${idx})">▶</button>
+      <button class="queue-remove" onclick="removeFromQueue(${idx})">×</button>`;
+    list.appendChild(div);
+  });
+}
+
+function playFromQueue(idx) {
+  if (queue[idx]) {
+    loadStream(queue[idx].channel);
+    send({ type:'queue_remove', idx });
+  }
+}
+
+function removeFromQueue(idx) {
+  send({ type:'queue_remove', idx });
+}
+
+// ════════════════════════════════════════
+// TABS
+// ════════════════════════════════════════
+function switchBrowseTab(tab) {
+  document.querySelectorAll('.tabs .tab-btn').forEach((b, i) => {
+    const tabs = ['live','games','categories'];
+    b.classList.toggle('active', tabs[i] === tab);
+  });
+  document.querySelectorAll('.browse-content .tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(`tab-${tab}`).classList.add('active');
+
+  if (tab === 'games' && !document.getElementById('games-list').children.length) loadGames();
+  if (tab === 'categories' && !document.getElementById('cats-grid').children.length) loadCategories();
+}
+
+function switchWatchTab(tab) {
+  document.querySelectorAll('.watch-tab').forEach((b, i) => {
+    const tabs = ['chat','viewers','queue'];
+    b.classList.toggle('active', tabs[i] === tab);
+  });
+  document.querySelectorAll('.watch-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(`panel-${tab}`).classList.add('active');
+}
+
+// ════════════════════════════════════════
+// LOAD DATA
+// ════════════════════════════════════════
+async function loadStreams(gameId = null, append = false) {
+  const list = document.getElementById('live-list');
+  const loading = document.getElementById('live-loading');
+
+  if (!append) {
+    loading.style.display = 'flex';
+    list.innerHTML = '';
+  }
+
+  try {
+    const url = gameId
+      ? `${BASE}/api/streams?first=30&game_id=${gameId}`
+      : `${BASE}/api/streams?first=30`;
+    const data = await fetch(url).then(r => r.json());
+    loading.style.display = 'none';
+
+    if (!data.data?.length) {
+      list.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">No streams found</div><div class="empty-sub">Try a different search</div></div>';
+      return;
+    }
+
+    document.getElementById('live-count').textContent = `${data.data.length} live`;
+
+    // Featured banner — top stream
+    const top = data.data[0];
+    const banner = document.getElementById('featured-banner');
+    if (top && !gameId) {
+      banner.style.display = 'block';
+      document.getElementById('featured-name').textContent = top.user_name;
+      document.getElementById('featured-game').textContent = top.game_name || '';
+      document.getElementById('featured-vc').textContent = formatVC(top.viewer_count) + ' viewers';
+      const bg = top.thumbnail_url?.replace('{width}','400').replace('{height}','225') || '';
+      document.getElementById('featured-bg').style.backgroundImage = `url(${bg})`;
+      banner.onclick = () => loadStream(top.user_login);
+    }
+
+    data.data.forEach(s => {
+      const thumb = s.thumbnail_url?.replace('{width}','100').replace('{height}','56') || '';
+      const vc = formatVC(s.viewer_count);
+      const card = document.createElement('div');
+      card.className = 'stream-card';
+      card.dataset.ch = s.user_login;
+      if (s.user_login === currentChannel) card.classList.add('active-stream');
+      card.innerHTML = `
+        <div class="thumb">
+          <img src="${thumb}" loading="lazy" onerror="this.src=''"/>
+          <span class="badge-live">LIVE</span>
+          <span class="badge-vc">${vc}</span>
+        </div>
+        <div class="sinfo">
+          <div class="sname">${escHtml(s.user_name)}</div>
+          <div class="sgame">${escHtml(s.game_name || '')}</div>
+          <div class="stitle">${escHtml(s.title || '')}</div>
+          ${s.language ? `<span class="slang">${s.language}</span>` : ''}
+        </div>
+        <div class="stream-actions">
+          <button class="watch-btn" onclick="event.stopPropagation();loadStream('${s.user_login}')">▶ Watch</button>
+        </div>`;
+      card.onclick = () => loadStream(s.user_login);
+      list.appendChild(card);
+    });
+
+  } catch(e) {
+    loading.innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Failed to load</div><div class="empty-sub">Retrying...</div></div>';
+    setTimeout(() => loadStreams(gameId), 3000);
+  }
+}
+
+async function loadGames() {
+  const list = document.getElementById('games-list');
+  const loading = document.getElementById('games-loading');
+  loading.style.display = 'flex';
+  try {
+    const data = await fetch(`${BASE}/api/games`).then(r => r.json());
+    loading.style.display = 'none';
+    data.data.forEach(g => {
+      const img = g.box_art_url?.replace('{width}','44').replace('{height}','59') || '';
+      const card = document.createElement('div');
+      card.className = 'game-card';
+      card.innerHTML = `
+        <img src="${img}" loading="lazy" onerror="this.style.visibility='hidden'"/>
+        <div class="game-info">
+          <div class="game-name">${escHtml(g.name)}</div>
+          <div class="game-vc">Tap to browse streams</div>
+        </div>
+        <svg width="16" height="16" fill="var(--muted)" viewBox="0 0 24 24"><path d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"/></svg>`;
+      card.onclick = () => { switchBrowseTab('live'); loadStreams(g.id); };
+      list.appendChild(card);
+    });
+  } catch(e) {
+    loading.innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Failed</div></div>';
+  }
+}
+
+async function loadCategories() {
+  const grid = document.getElementById('cats-grid');
+  const loading = document.getElementById('cats-loading');
+  loading.style.display = 'flex';
+  try {
+    const data = await fetch(`${BASE}/api/games?first=40`).then(r => r.json());
+    loading.style.display = 'none';
+    data.data.forEach(g => {
+      const img = g.box_art_url?.replace('{width}','80').replace('{height}','107') || '';
+      const card = document.createElement('div');
+      card.className = 'cat-card';
+      card.innerHTML = `
+        <img src="${img}" loading="lazy" onerror="this.style.visibility='hidden'"/>
+        <div class="cat-name">${escHtml(g.name)}</div>`;
+      card.onclick = () => { switchBrowseTab('live'); loadStreams(g.id); };
+      grid.appendChild(card);
+    });
+  } catch(e) {
+    loading.innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Failed</div></div>';
+  }
+}
+
+// ════════════════════════════════════════
+// SEARCH
+// ════════════════════════════════════════
+let searchTimer;
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('search-input').addEventListener('input', e => {
+    clearTimeout(searchTimer);
+    const q = e.target.value.trim();
+    if (!q) { switchBrowseTab('live'); loadStreams(); return; }
+    switchBrowseTab('live');
+    searchTimer = setTimeout(async () => {
+      const list = document.getElementById('live-list');
+      const loading = document.getElementById('live-loading');
+      const banner = document.getElementById('featured-banner');
+      if (banner) banner.style.display = 'none';
+      loading.style.display = 'flex'; list.innerHTML = '';
+      try {
+        const data = await fetch(`${BASE}/api/search?q=${encodeURIComponent(q)}`).then(r=>r.json());
+        loading.style.display = 'none';
+        document.getElementById('live-count').textContent = `${data.data?.length || 0} results`;
+        if (!data.data?.length) {
+          list.innerHTML = '<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">No results</div><div class="empty-sub">Try a different name</div></div>';
+          return;
+        }
+        data.data.forEach(ch => {
+          const card = document.createElement('div');
+          card.className = 'stream-card'; card.dataset.ch = ch.broadcaster_login;
+          card.innerHTML = `
+            <div class="thumb">
+              <img src="${ch.thumbnail_url||''}" loading="lazy" onerror="this.src=''"/>
+              <span class="badge-live">LIVE</span>
+            </div>
+            <div class="sinfo">
+              <div class="sname">${escHtml(ch.display_name)}</div>
+              <div class="sgame">${escHtml(ch.game_name||'')}</div>
+              <div class="stitle">${escHtml(ch.title||'')}</div>
+            </div>
+            <div class="stream-actions">
+              <button class="watch-btn" onclick="event.stopPropagation();loadStream('${ch.broadcaster_login}')">▶ Watch</button>
+            </div>`;
+          card.onclick = () => loadStream(ch.broadcaster_login);
+          list.appendChild(card);
+        });
+      } catch(e) { loading.innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Search failed</div></div>'; }
+    }, 380);
+  });
+});
+
+// ════════════════════════════════════════
+// UTILS
+// ════════════════════════════════════════
+function formatVC(n) {
+  if (!n) return '0';
+  if (n >= 1000000) return (n/1000000).toFixed(1)+'M';
+  if (n >= 1000) return (n/1000).toFixed(1)+'K';
+  return String(n);
+}
+
+function escHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// PC layout adjustments
+function handleResize() {
+  isPC = window.innerWidth >= 768;
+  const watchRight = document.getElementById('watch-right');
+  const watchLower = document.getElementById('watch-lower');
+  if (watchRight && watchLower) {
+    watchRight.style.display = isPC ? 'flex' : 'none';
+    watchLower.style.display = isPC ? 'none' : 'flex';
+  }
+}
+
+window.addEventListener('resize', handleResize);
+
+// ════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════
+connectWS();
+loadStreams();
+handleResize();
+</script>
+</body>
+</html>
