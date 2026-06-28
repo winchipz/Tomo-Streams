@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>Tomo Stream</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0e0e10; --surface: #18181b; --surface2: #1f1f23;
+    --border: #2a2a2e; --purple: #9147ff; --text: #efeff1;
+    --muted: #adadb8; --live: #eb0400;
+  }
+  html, body {
+    height: 100%; width: 100%;
+    background: var(--bg); color: var(--text);
+    font-family: 'Inter', sans-serif;
+    overflow: hidden; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ── SCREENS ── */
+  .screen { position: fixed; inset: 0; display: flex; flex-direction: column; transition: transform 0.3s ease; }
+  #screen-browse { transform: translateX(0); z-index: 1; }
+  #screen-watch  { transform: translateX(100%); z-index: 2; background: #000; }
+  body.watching #screen-browse { transform: translateX(-30%); }
+  body.watching #screen-watch  { transform: translateX(0); }
+
+  /* ── BROWSE SCREEN ── */
+  .browse-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px 14px 10px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .logo { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 15px; color: var(--purple); }
+  .logo svg { width: 20px; height: 20px; fill: var(--purple); }
+  .search-bar {
+    flex: 1; display: flex; align-items: center;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 20px; padding: 7px 12px; gap: 6px;
+  }
+  .search-bar input { background: none; border: none; outline: none; color: var(--text); font-size: 13px; width: 100%; }
+  .search-bar input::placeholder { color: var(--muted); }
+  .vc-badge {
+    display: flex; align-items: center; gap: 5px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 20px; padding: 6px 10px; font-size: 11px; color: var(--muted);
+  }
+  .green-dot { width: 7px; height: 7px; background: #00c853; border-radius: 50%; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .tabs {
+    display: flex; background: var(--surface);
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .tab-btn {
+    flex: 1; padding: 11px 0; background: none; border: none;
+    color: var(--muted); font-size: 12px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.2s;
+  }
+  .tab-btn.active { color: var(--purple); border-bottom-color: var(--purple); }
+  .tab-panel { display: none; flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .tab-panel.active { display: block; }
+  .tab-panel::-webkit-scrollbar { display: none; }
+
+  /* stream card */
+  .stream-card {
+    display: flex; gap: 10px; padding: 10px 14px;
+    border-bottom: 1px solid var(--border); cursor: pointer;
+    transition: background 0.1s; align-items: center;
+  }
+  .stream-card:active { background: var(--surface2); }
+  .stream-card.active-stream { background: var(--surface2); border-left: 3px solid var(--purple); }
+  .thumb { position: relative; width: 96px; height: 54px; border-radius: 6px; overflow: hidden; flex-shrink: 0; background: var(--surface2); }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .live-badge { position: absolute; bottom: 3px; left: 3px; background: var(--live); color: #fff; font-size: 9px; font-weight: 700; padding: 1px 4px; border-radius: 3px; }
+  .vc-count { position: absolute; bottom: 3px; right: 3px; background: rgba(0,0,0,0.75); color: #fff; font-size: 9px; padding: 1px 4px; border-radius: 3px; }
+  .sinfo { flex: 1; min-width: 0; }
+  .sname { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sgame { font-size: 11px; color: var(--purple); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stitle { font-size: 11px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* game card */
+  .game-card { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.1s; }
+  .game-card:active { background: var(--surface2); }
+  .game-card img { width: 40px; height: 54px; border-radius: 5px; object-fit: cover; background: var(--surface2); }
+  .game-name { font-size: 13px; font-weight: 500; }
+
+  /* loading */
+  .loading { display: flex; align-items: center; justify-content: center; padding: 30px; color: var(--muted); font-size: 13px; gap: 10px; }
+  .spinner { width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--purple); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── WATCH SCREEN ── */
+  #screen-watch { display: flex; flex-direction: column; }
+
+  .watch-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; background: rgba(0,0,0,0.9);
+    flex-shrink: 0; z-index: 10;
+  }
+  .back-btn {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text); padding: 7px 12px;
+    font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px;
+  }
+  .now-watching { flex: 1; }
+  .nw-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .nw-name { font-size: 14px; font-weight: 700; color: var(--text); }
+  .nw-live { display: flex; align-items: center; gap: 5px; }
+  .live-dot { width: 7px; height: 7px; background: var(--live); border-radius: 50%; animation: pulse 1.5s infinite; }
+
+  /* player */
+  #player-container {
+    width: 100%; background: #000;
+    flex-shrink: 0;
+    height: 210px;
+  }
+  #twitch-player { width: 100%; height: 100%; }
+
+  /* sync controls */
+  .sync-bar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; background: var(--surface);
+    border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .sync-label { font-size: 11px; color: var(--muted); }
+  .sync-btn {
+    background: var(--purple); border: none; border-radius: 8px;
+    color: #fff; padding: 8px 16px; font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: background 0.15s; display: flex; align-items: center; gap: 6px;
+  }
+  .sync-btn:active { background: #772ce8; }
+  .sync-btn.secondary { background: var(--surface2); border: 1px solid var(--border); color: var(--text); }
+  .sync-status { margin-left: auto; font-size: 11px; color: var(--muted); }
+
+  /* viewers in watch */
+  .watch-viewers {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 14px; background: var(--surface2);
+    flex-shrink: 0;
+  }
+  .viewer-avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--purple); display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; color: #fff; flex-shrink: 0;
+  }
+  .watch-vc-label { font-size: 12px; color: var(--muted); margin-left: 4px; }
+
+  /* reactions */
+  .reactions-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 14px; background: var(--surface);
+    border-top: 1px solid var(--border); flex-shrink: 0;
+  }
+  .react-label { font-size: 11px; color: var(--muted); }
+  .react-btn {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 20px; padding: 6px 12px; font-size: 18px;
+    cursor: pointer; transition: transform 0.15s;
+  }
+  .react-btn:active { transform: scale(1.3); background: var(--purple); border-color: var(--purple); }
+
+  /* chat in watch */
+  .watch-chat { flex: 1; overflow-y: auto; padding: 10px 14px; background: var(--bg); -webkit-overflow-scrolling: touch; }
+  .watch-chat::-webkit-scrollbar { display: none; }
+  .chat-msg { display: flex; gap: 8px; margin-bottom: 10px; align-items: flex-start; }
+  .chat-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--purple); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .chat-body { flex: 1; }
+  .chat-name { font-size: 11px; font-weight: 600; color: var(--purple); }
+  .chat-text { font-size: 13px; color: var(--text); margin-top: 2px; }
+  .chat-time { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .chat-input-wrap {
+    display: flex; gap: 8px; padding: 8px 14px;
+    background: var(--surface); border-top: 1px solid var(--border); flex-shrink: 0;
+  }
+  .chat-input {
+    flex: 1; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 20px; padding: 8px 14px; color: var(--text); font-size: 13px; outline: none;
+  }
+  .chat-send {
+    background: var(--purple); border: none; border-radius: 20px;
+    color: #fff; padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+
+  /* float emoji */
+  .float-emoji { position: fixed; pointer-events: none; font-size: 32px; animation: floatUp 2.5s ease-out forwards; z-index: 999; }
+  @keyframes floatUp { 0%{transform:translateY(0) scale(1);opacity:1} 100%{transform:translateY(-200px) scale(1.5);opacity:0} }
+
+  /* sync flash */
+  .sync-flash { position: fixed; inset: 0; background: rgba(145,71,255,0.15); pointer-events: none; z-index: 998; animation: flashFade 0.5s ease-out forwards; }
+  @keyframes flashFade { 0%{opacity:1} 100%{opacity:0} }
+</style>
+</head>
+<body>
+
+<!-- ── BROWSE SCREEN ── -->
+<div class="screen" id="screen-browse">
+  <div class="browse-header">
+    <div class="logo">
+      <svg viewBox="0 0 24 24"><path d="M11.64 5.93h1.43v4.28h-1.43m3.93-4.28H17v4.28h-1.43M7 2L3.43 5.57v12.86h4.28V22l3.58-3.57h2.85L20.57 12V2m-1.43 9.29-2.85 2.85h-2.86l-2.5 2.5v-2.5H7.71V3.43h11.43z"/></svg>
+      Tomo Stream
+    </div>
+    <div class="search-bar">
+      <svg width="13" height="13" fill="var(--muted)" viewBox="0 0 24 24"><path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"/></svg>
+      <input type="text" id="search-input" placeholder="Search live streams..."/>
+    </div>
+    <div class="vc-badge"><div class="green-dot"></div><span id="vc-count">0</span></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('live')">🔴 Live</button>
+    <button class="tab-btn" onclick="switchTab('games')">🎮 Games</button>
+  </div>
+
+  <div class="tab-panel active" id="tab-live">
+    <div class="loading" id="live-loading"><div class="spinner"></div> Loading streams...</div>
+    <div id="live-list"></div>
+  </div>
+  <div class="tab-panel" id="tab-games">
+    <div class="loading" id="games-loading"><div class="spinner"></div> Loading games...</div>
+    <div id="games-list"></div>
+  </div>
+</div>
+
+<!-- ── WATCH SCREEN ── -->
+<div class="screen" id="screen-watch">
+  <div class="watch-header">
+    <button class="back-btn" onclick="goBack()">← Back</button>
+    <div class="now-watching">
+      <div class="nw-label">Watching Together</div>
+      <div class="nw-live">
+        <div class="live-dot"></div>
+        <div class="nw-name" id="nw-name">—</div>
+      </div>
+    </div>
+    <div class="vc-badge"><div class="green-dot"></div><span id="vc-count2">0</span></div>
+  </div>
+
+  <div id="player-container">
+    <div id="twitch-player"></div>
+  </div>
+
+  <div class="sync-bar">
+    <span class="sync-label">Sync:</span>
+    <button class="sync-btn" id="pause-btn" onclick="syncPause()">⏸ Pause All</button>
+    <button class="sync-btn secondary" id="play-btn" onclick="syncPlay()">▶ Play All</button>
+    <span class="sync-status" id="sync-status"></span>
+  </div>
+
+  <div class="watch-viewers" id="watch-viewers">
+    <div class="watch-vc-label" id="viewers-label">1 person watching</div>
+  </div>
+
+  <div class="reactions-bar">
+    <span class="react-label">React:</span>
+    <button class="react-btn" onclick="react('🔥')">🔥</button>
+    <button class="react-btn" onclick="react('😂')">😂</button>
+    <button class="react-btn" onclick="react('😮')">😮</button>
+    <button class="react-btn" onclick="react('❤️')">❤️</button>
+    <button class="react-btn" onclick="react('👏')">👏</button>
+    <button class="react-btn" onclick="react('💜')">💜</button>
+  </div>
+
+  <div class="watch-chat" id="watch-chat"></div>
+
+  <div class="chat-input-wrap">
+    <input type="text" class="chat-input" id="chat-input" placeholder="Say something..." maxlength="200"/>
+    <button class="chat-send" onclick="sendChat()">Send</button>
+  </div>
+</div>
+
+<!-- Twitch Player SDK -->
+<script src="https://player.twitch.tv/js/embed/v1.js"></script>
+
+<script>
+const BASE = window.location.origin;
+const WS_URL = BASE.replace('https://','wss://').replace('http://','ws://');
+const params = new URLSearchParams(window.location.search);
+const ROOM = params.get('room') || 'default';
+const MY_NAME = params.get('user') || 'Viewer' + Math.floor(Math.random()*999);
+
+let ws, player = null, currentChannel = null, isHost = false, viewerCount = 0;
+let isSyncing = false;
+
+// ── WEBSOCKET ──────────────────────────────────────────────
+function connectWS() {
+  ws = new WebSocket(WS_URL);
+
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ type: 'join', roomId: ROOM, name: MY_NAME }));
+  };
+
+  ws.onmessage = e => {
+    const m = JSON.parse(e.data);
+
+    if (m.type === 'joined') {
+      viewerCount = m.count;
+      isHost = m.isHost;
+      updateViewerUI();
+      if (m.stream) loadStream(m.stream, false);
+    }
+
+    if (m.type === 'user_joined' || m.type === 'user_left') {
+      viewerCount = m.count;
+      updateViewerUI();
+      addChatMsg('System', m.type === 'user_joined' ? `${m.name} joined 👋` : `${m.name} left`, true);
+    }
+
+    if (m.type === 'stream_change') {
+      loadStream(m.channel, false);
+      addChatMsg('System', `Now watching ${m.channel} 📺`, true);
+    }
+
+    if (m.type === 'sync_pause') {
+      isSyncing = true;
+      if (player) player.pause();
+      showSyncFlash();
+      document.getElementById('sync-status').textContent = 'Paused by host';
+      setTimeout(() => { isSyncing = false; }, 500);
+    }
+
+    if (m.type === 'sync_play') {
+      isSyncing = true;
+      if (player) player.play();
+      showSyncFlash();
+      document.getElementById('sync-status').textContent = 'Playing in sync ✓';
+      setTimeout(() => { isSyncing = false; }, 500);
+    }
+
+    if (m.type === 'reaction') {
+      showEmoji(m.emoji);
+    }
+
+    if (m.type === 'chat') {
+      addChatMsg(m.name, m.text, false);
+    }
+  };
+
+  ws.onclose = () => setTimeout(connectWS, 3000);
+}
+
+function send(obj) {
+  if (ws?.readyState === 1) ws.send(JSON.stringify(obj));
+}
+
+// ── PLAYER ────────────────────────────────────────────────
+function loadStream(channel, broadcast = true) {
+  currentChannel = channel;
+  document.getElementById('nw-name').textContent = channel;
+  document.getElementById('nw-name').textContent = channel;
+
+  // Update browse list active state
+  document.querySelectorAll('.stream-card').forEach(c =>
+    c.classList.toggle('active-stream', c.dataset.ch === channel)
+  );
+
+  // Switch to watch screen
+  document.body.classList.add('watching');
+
+  // Init or update Twitch player
+  const domain = window.location.hostname || 'localhost';
+
+  if (player) {
+    player.setChannel(channel);
+  } else {
+    player = new Twitch.Player('twitch-player', {
+      channel,
+      width: '100%',
+      height: '100%',
+      parent: [domain],
+      autoplay: true,
+      muted: false
+    });
+
+    player.addEventListener(Twitch.Player.PAUSE, () => {
+      if (!isSyncing) {
+        document.getElementById('sync-status').textContent = 'You paused';
+      }
+    });
+
+    player.addEventListener(Twitch.Player.PLAY, () => {
+      if (!isSyncing) {
+        document.getElementById('sync-status').textContent = 'You playing';
+      }
+    });
+  }
+
+  if (broadcast) {
+    send({ type: 'change_stream', channel });
+  }
+}
+
+function goBack() {
+  document.body.classList.remove('watching');
+}
+
+// ── SYNC CONTROLS ─────────────────────────────────────────
+function syncPause() {
+  if (!player) return;
+  player.pause();
+  send({ type: 'sync_pause' });
+  document.getElementById('sync-status').textContent = 'Paused everyone ⏸';
+}
+
+function syncPlay() {
+  if (!player) return;
+  player.play();
+  send({ type: 'sync_play' });
+  document.getElementById('sync-status').textContent = 'Playing everyone ▶';
+}
+
+// ── REACTIONS ─────────────────────────────────────────────
+function react(emoji) {
+  showEmoji(emoji);
+  send({ type: 'reaction', emoji });
+}
+
+function showEmoji(emoji) {
+  const el = document.createElement('div');
+  el.className = 'float-emoji';
+  el.textContent = emoji;
+  el.style.cssText = `left:${15+Math.random()*60}%;bottom:200px`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2500);
+}
+
+function showSyncFlash() {
+  const el = document.createElement('div');
+  el.className = 'sync-flash';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 500);
+}
+
+// ── CHAT ──────────────────────────────────────────────────
+function sendChat() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  addChatMsg(MY_NAME, text, false);
+  send({ type: 'chat', name: MY_NAME, text });
+  input.value = '';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('chat-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') sendChat();
+  });
+});
+
+function addChatMsg(name, text, isSystem) {
+  const chat = document.getElementById('watch-chat');
+  const div = document.createElement('div');
+  div.className = 'chat-msg';
+  const initial = name[0]?.toUpperCase() || '?';
+  const time = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  if (isSystem) {
+    div.innerHTML = `<div style="width:100%;text-align:center;font-size:11px;color:var(--muted);padding:4px 0">${text}</div>`;
+  } else {
+    div.innerHTML = `
+      <div class="chat-avatar">${initial}</div>
+      <div class="chat-body">
+        <div class="chat-name">${name}</div>
+        <div class="chat-text">${text}</div>
+        <div class="chat-time">${time}</div>
+      </div>`;
+  }
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+// ── VIEWERS UI ────────────────────────────────────────────
+function updateViewerUI() {
+  document.getElementById('vc-count').textContent = viewerCount;
+  document.getElementById('vc-count2').textContent = viewerCount;
+  document.getElementById('viewers-label').textContent =
+    `${viewerCount} ${viewerCount === 1 ? 'person' : 'people'} watching`;
+}
+
+// ── TABS ──────────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) =>
+    b.classList.toggle('active', (i===0&&tab==='live')||(i===1&&tab==='games'))
+  );
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(`tab-${tab}`).classList.add('active');
+  if (tab === 'games' && !document.getElementById('games-list').children.length) loadGames();
+}
+
+// ── LOAD STREAMS ──────────────────────────────────────────
+async function loadStreams(gameId = null) {
+  const list = document.getElementById('live-list');
+  const loading = document.getElementById('live-loading');
+  loading.style.display = 'flex'; list.innerHTML = '';
+  try {
+    const url = gameId ? `${BASE}/api/streams?first=30&game_id=${gameId}` : `${BASE}/api/streams?first=30`;
+    const data = await fetch(url).then(r => r.json());
+    loading.style.display = 'none';
+    data.data.forEach(s => {
+      const thumb = s.thumbnail_url.replace('{width}','96').replace('{height}','54');
+      const vc = s.viewer_count >= 1000 ? (s.viewer_count/1000).toFixed(1)+'K' : s.viewer_count;
+      const card = document.createElement('div');
+      card.className = 'stream-card'; card.dataset.ch = s.user_login;
+      card.innerHTML = `
+        <div class="thumb">
+          <img src="${thumb}" loading="lazy" onerror="this.src=''"/>
+          <span class="live-badge">LIVE</span>
+          <span class="vc-count">${vc}</span>
+        </div>
+        <div class="sinfo">
+          <div class="sname">${s.user_name}</div>
+          <div class="sgame">${s.game_name || ''}</div>
+          <div class="stitle">${s.title}</div>
+        </div>`;
+      card.onclick = () => loadStream(s.user_login);
+      if (s.user_login === currentChannel) card.classList.add('active-stream');
+      list.appendChild(card);
+    });
+  } catch(e) {
+    loading.innerHTML = 'Failed to load. Retrying...';
+    setTimeout(() => loadStreams(gameId), 3000);
+  }
+}
+
+// ── LOAD GAMES ────────────────────────────────────────────
+async function loadGames() {
+  const list = document.getElementById('games-list');
+  const loading = document.getElementById('games-loading');
+  loading.style.display = 'flex';
+  try {
+    const data = await fetch(`${BASE}/api/games`).then(r => r.json());
+    loading.style.display = 'none';
+    data.data.forEach(g => {
+      const img = g.box_art_url.replace('{width}','40').replace('{height}','54');
+      const card = document.createElement('div');
+      card.className = 'game-card';
+      card.innerHTML = `<img src="${img}" loading="lazy" onerror="this.style.display='none'"/><span class="game-name">${g.name}</span>`;
+      card.onclick = () => { switchTab('live'); loadStreams(g.id); };
+      list.appendChild(card);
+    });
+  } catch(e) { loading.innerHTML = 'Failed to load games.'; }
+}
+
+// ── SEARCH ────────────────────────────────────────────────
+let st;
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('search-input').addEventListener('input', e => {
+    clearTimeout(st);
+    const q = e.target.value.trim();
+    if (!q) { loadStreams(); return; }
+    st = setTimeout(async () => {
+      const list = document.getElementById('live-list');
+      const loading = document.getElementById('live-loading');
+      loading.style.display = 'flex'; list.innerHTML = '';
+      try {
+        const data = await fetch(`${BASE}/api/search?q=${encodeURIComponent(q)}`).then(r => r.json());
+        loading.style.display = 'none';
+        if (!data.data.length) { list.innerHTML = '<div class="loading">No live streams found</div>'; return; }
+        data.data.forEach(ch => {
+          const card = document.createElement('div');
+          card.className = 'stream-card'; card.dataset.ch = ch.broadcaster_login;
+          card.innerHTML = `
+            <div class="thumb">
+              <img src="${ch.thumbnail_url||''}" loading="lazy"/>
+              <span class="live-badge">LIVE</span>
+            </div>
+            <div class="sinfo">
+              <div class="sname">${ch.display_name}</div>
+              <div class="sgame">${ch.game_name||''}</div>
+              <div class="stitle">${ch.title||''}</div>
+            </div>`;
+          card.onclick = () => loadStream(ch.broadcaster_login);
+          list.appendChild(card);
+        });
+      } catch(e) { loading.innerHTML = 'Search failed.'; }
+    }, 400);
+  });
+});
+
+// ── INIT ──────────────────────────────────────────────────
+connectWS();
+loadStreams();
+</script>
+</body>
+</html>
